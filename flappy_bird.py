@@ -1,8 +1,8 @@
 import pygame
 import neat
-import time
 import os
 import random
+
 pygame.init()
 
 WIN_WIDTH = 500
@@ -164,7 +164,7 @@ def draw_window(win, bird, pipes, base, score):
     for pipe in pipes:
         pipe.draw(win)
 
-    text = STAT_FONT.render("Score " + str(score), 1, (255,255,255))
+    text = STAT_FONT.render("Score " + str(score), 1, (255, 255, 255))
     win.blit(text, (WIN_WIDTH - 10 - text.get_width(), 10))
 
     base.draw(win)
@@ -173,8 +173,18 @@ def draw_window(win, bird, pipes, base, score):
     pygame.display.flip()
 
 
-def main():
-    bird = Bird(BIRD_X, BIRD_Y)
+def main(genomes, config):
+    nets = []
+    ge = []
+    birds = []
+
+    for g in genomes:
+        net = neat.nn.FeedForwardNetwork(g, config)
+        nets.append(net)
+        birds.append(Bird(BIRD_X, BIRD_Y))
+        g.fitness = 0
+        ge.append(g)
+
     base = Base(BASE_POSITION)
     pipes = [Pipe(700)]
     win = pygame.display.set_mode((WIN_WIDTH, WIN_HEIGHT))
@@ -192,15 +202,17 @@ def main():
         add_pipe = False
         rem = []
         for pipe in pipes:
-            if pipe.collide(bird):
-                pass  # end the game or something similar
+            for bird in birds:
+                if pipe.collide(bird):
+                    pass  # end the game or something similar
+
+                if not pipe.passed and pipe.x < bird.x:
+                    pipe.passed = True
+                    add_pipe = True
 
             if pipe.x + pipe.PIPE_TOP.get_width() < 0:
                 rem.append(pipe)
 
-            if not pipe.passed and pipe.x < bird.x:
-                pipe.passed = True
-                add_pipe = True
             pipe.move()
 
         if add_pipe:
@@ -210,8 +222,9 @@ def main():
         for r in rem:
             pipes.remove(r)
 
-        if bird.y + bird.img.get_height() >= BASE_POSITION:  # if bird falls below base
-            pass
+        for bird in birds:
+            if bird.y + bird.img.get_height() >= BASE_POSITION:  # if bird falls below base
+                pass
 
         base.move()
         draw_window(win, bird, pipes, base, score)
@@ -221,3 +234,25 @@ def main():
 
 
 main()
+
+
+def run(config_path):
+    # load neat configuration file
+    config = neat.config.Config(neat.DefaultGenome, neat.DefaultReproduction,
+                                neat.DefaultSpeciesSet, neat.DefaultStagnation,
+                                config_path)
+
+    # create population
+    p = neat.Population(config)
+
+    p.add_reporter(neat.StdOutReporter(True))
+    stats = neat.StatisticsReporter()
+    p.add_reporter(stats)
+
+    winner = p.run(main, 50)
+
+
+if __name__ == "__main__":
+    local_dir = os.path.dirname(__file__)
+    config_path = os.path.join(local_dir, "config-feedforward.txt")
+    run(config_path)
